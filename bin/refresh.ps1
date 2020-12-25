@@ -13,7 +13,7 @@ $output = robocopy $src $dest /mir /njh /njs /nfl /ndl /xd .git tmp /xf .DS_Stor
 $output | Where-Object { $_ -ne "" }
 
 Write-Output 'creating shim...'
-shim "$dest\bin\scoop.ps1" $false
+shim (Join-Path $dest "bin\scoop.ps1") $false
 
 ensure_scoop_in_path
 success 'scoop was refreshed!'

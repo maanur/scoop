@@ -174,14 +174,14 @@ function filesize($length) {
 
 # dirs
 function basedir($global) { if($global) { return $globaldir } $scoopdir }
-function appsdir($global) { "$(basedir $global)\apps" }
-function shimdir($global) { "$(basedir $global)\shims" }
-function appdir($app, $global) { "$(appsdir $global)\$app" }
-function versiondir($app, $version, $global) { "$(appdir $app $global)\$version" }
-function persistdir($app, $global) { "$(basedir $global)\persist\$app" }
-function usermanifestsdir { "$(basedir)\workspace" }
-function usermanifest($app) { "$(usermanifestsdir)\$app.json" }
-function cache_path($app, $version, $url) { "$cachedir\$app#$version#$($url -replace '[^\w\.\-]+', '_')" }
+function appsdir($global) { Join-Path -Path (basedir $global) -ChildPath "apps" }
+function shimdir($global) { Join-Path -Path (basedir $global) -ChildPath "shims" }
+function appdir($app, $global) { Join-Path -Path (appsdir $global) -ChildPath $app }
+function versiondir($app, $version, $global) { Join-Path -Path (appdir $app $global) -ChildPath $version }
+function persistdir($app, $global) { Join-Path -Path (basedir $global) -ChildPath "persist\$app" }
+function usermanifestsdir { Join-Path -Path basedir -ChildPath "workspace" }
+function usermanifest($app) { Join-Path -Path usermanifestsdir -ChildPath $app.json }
+function cache_path($app, $version, $url) { Join-Path -Path $cachedir -ChildPath "$app#$version#$($url -replace '[^\w\.\-]+', '_')" }
 
 # apps
 function sanitary_path($path) { return [regex]::replace($path, "[/\\?:*<>|]", "") }
@@ -217,13 +217,13 @@ function Get-AppFilePath {
     )
 
     # normal path to file
-    $Path = "$(versiondir $App 'current' $false)\$File"
+    $Path = Join-Path (versiondir $App 'current' $false) $File
     if(Test-Path $Path) {
         return $Path
     }
 
     # global path to file
-    $Path = "$(versiondir $App 'current' $true)\$File"
+    $Path = Join-Path (versiondir $App 'current' $true) $File
     if(Test-Path $Path) {
         return $Path
     }
@@ -351,15 +351,15 @@ function url_remote_filename($url) {
     return $basename
 }
 
-function ensure($dir) { if(!(test-path $dir)) { mkdir $dir > $null }; resolve-path $dir }
+function ensure($dir) { if(!(test-path $dir)) { New-Item -ItemType Directory -Force $dir > $null }; resolve-path $dir }
 function fullpath($path) { # should be ~ rooted
     $executionContext.sessionState.path.getUnresolvedProviderPathFromPSPath($path)
 }
-function relpath($path) { "$($myinvocation.psscriptroot)\$path" } # relative to calling script
+function relpath($path) { Join-Path $myinvocation.psscriptroot $path } # relative to calling script
 function friendly_path($path) {
-    $h = (Get-PsProvider 'FileSystem').home; if(!$h.endswith('\')) { $h += '\' }
-    if($h -eq '\') { return $path }
-    return "$path" -replace ([regex]::escape($h)), "~\"
+    $h = (Get-PsProvider 'FileSystem').home; if(!$h.endswith([IO.Path]::DirectorySeparatorChar)) { $h += [IO.Path]::DirectorySeparatorChar }
+    if($h -eq [IO.Path]::DirectorySeparatorChar) { return $path }
+    return "$path" -replace ([regex]::escape($h)), "~$([IO.Path]::DirectorySeparatorChar)"
 }
 function is_local($path) {
     ($path -notmatch '^https?://') -and (test-path $path)
@@ -491,8 +491,8 @@ function is_directory([String] $path) {
 }
 
 function movedir($from, $to) {
-    $from = $from.trimend('\')
-    $to = $to.trimend('\')
+    $from = $from.trimend([IO.Path]::DirectorySeparatorChar)
+    $to = $to.trimend([IO.Path]::DirectorySeparatorChar)
 
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo.FileName = 'robocopy.exe'
@@ -551,7 +551,7 @@ function shim($path, $global, $name, $arg) {
     $abs_shimdir = ensure (shimdir $global)
     if(!$name) { $name = strip_ext (fname $path) }
 
-    $shim = "$abs_shimdir\$($name.tolower())"
+    $shim = Join-Path $abs_shimdir $($name.tolower())
 
     warn_on_overwrite "$shim.ps1" $path
 

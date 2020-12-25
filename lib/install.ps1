@@ -253,7 +253,7 @@ function dl_with_cache_aria2($app, $version, $manifest, $architecture, $dir, $co
     foreach($url in $urls) {
         $data.$url = @{
             'filename' = url_filename $url
-            'target' = "$dir\$(url_filename $url)"
+            'target' = Join-Path $dir (url_filename $url)
             'cachename' = fname (cache_path $app $version $url)
             'source' = fullpath (cache_path $app $version $url)
         }
@@ -729,14 +729,14 @@ function run_installer($fname, $manifest, $architecture, $dir, $global) {
 
 # deprecated (see also msi_installed)
 function install_msi($fname, $dir, $msi) {
-    $msifile = "$dir\$(coalesce $msi.file "$fname")"
+    $msifile = Join-Path $dir $(coalesce $msi.file "$fname")
     if(!(is_in_dir $dir $msifile)) {
         abort "Error in manifest: MSI file $msifile is outside the app directory."
     }
     if(!($msi.code)) { abort "Error in manifest: Couldn't find MSI code."}
     if(msi_installed $msi.code) { abort "The MSI package is already installed on this system." }
 
-    $logfile = "$dir\install.log"
+    $logfile = Join-Path $dir install.log
 
     $arg = @("/i `"$msifile`"", '/norestart', "/lvp `"$logfile`"", "TARGETDIR=`"$dir`"",
         "INSTALLDIR=`"$dir`"") + @(args $msi.args $dir)
@@ -769,7 +769,7 @@ function msi_installed($code) {
 }
 
 function install_prog($fname, $dir, $installer, $global) {
-    $prog = "$dir\$(coalesce $installer.file "$fname")"
+    $prog = Join-Path $dir (coalesce $installer.file "$fname")
     if(!(is_in_dir $dir $prog)) {
         abort "Error in manifest: Installer $prog is outside the app directory."
     }
@@ -850,8 +850,8 @@ function create_shims($manifest, $dir, $global, $arch) {
         $target, $name, $arg = shim_def $_
         write-output "Creating shim for '$name'."
 
-        if(test-path "$dir\$target" -pathType leaf) {
-            $bin = "$dir\$target"
+        if(test-path (Join-Path $dir $target) -pathType leaf) {
+            $bin = Join-Path $dir $target
         } elseif(test-path $target -pathType leaf) {
             $bin = $target
         } else {
@@ -864,7 +864,7 @@ function create_shims($manifest, $dir, $global, $arch) {
 }
 
 function rm_shim($name, $shimdir) {
-    $shim = "$shimdir\$name.ps1"
+    $shim = Join-Path $shimdir $name.ps1
 
     if(!(test-path $shim)) { # handle no shim from failed install
         warn "Shim for '$name' is missing. Skipping."
@@ -896,7 +896,7 @@ function rm_shims($manifest, $global, $arch) {
 # the specified version directory.
 function current_dir($versiondir) {
     $parent = split-path $versiondir
-    return "$parent\current"
+    return Join-Path $parent "current"
 }
 
 
@@ -968,7 +968,7 @@ function ensure_install_dir_not_in_path($dir, $global) {
 }
 
 function find_dir_or_subdir($path, $dir) {
-    $dir = $dir.trimend('\')
+    $dir = $dir.trimend([IO.Path]::DirectorySeparatorChar)
     $fixed = @()
     $removed = @()
     $path.split(';') | ForEach-Object {
@@ -1142,8 +1142,8 @@ function persist_data($manifest, $original_dir, $persist_dir) {
 
             $source = $source.TrimEnd("/").TrimEnd("\\")
 
-            $source = fullpath "$dir\$source"
-            $target = fullpath "$persist_dir\$target"
+            $source = fullpath (Join-Path $dir $source)
+            $target = fullpath (Join-Path $persist_dir $target)
 
             # if we have had persist data in the store, just create link and go
             if (Test-Path $target) {
